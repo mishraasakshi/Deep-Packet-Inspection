@@ -56,6 +56,16 @@ std::string appTypeToString(AppType type) {
     }
 }
 
+// True if `host` is exactly `domain` or one of its subdomains ("api.x.com" for "x.com").
+// A plain substring search is wrong for short domains: "netflix.com" contains "x.com"
+// and "microsoft.com" contains "t.co".
+static bool matchesDomain(const std::string& host, const std::string& domain) {
+    if (host == domain) return true;
+    return host.size() > domain.size() &&
+           host.compare(host.size() - domain.size(), domain.size(), domain) == 0 &&
+           host[host.size() - domain.size() - 1] == '.';
+}
+
 // Map SNI/domain to application type
 AppType sniToAppType(const std::string& sni) {
     if (sni.empty()) return AppType::UNKNOWN;
@@ -64,6 +74,10 @@ AppType sniToAppType(const std::string& sni) {
     std::string lower_sni = sni;
     std::transform(lower_sni.begin(), lower_sni.end(), lower_sni.begin(),
                    [](unsigned char c) { return std::tolower(c); });
+    // HTTP Host headers may carry a port ("example.com:8080") or a trailing dot
+    size_t colon = lower_sni.find(':');
+    if (colon != std::string::npos) lower_sni.erase(colon);
+    if (!lower_sni.empty() && lower_sni.back() == '.') lower_sni.pop_back();
     
     // Check for known patterns
     // Google (including YouTube, which is owned by Google)
@@ -78,7 +92,7 @@ AppType sniToAppType(const std::string& sni) {
     // YouTube
     if (lower_sni.find("youtube") != std::string::npos ||
         lower_sni.find("ytimg") != std::string::npos ||
-        lower_sni.find("youtu.be") != std::string::npos ||
+        matchesDomain(lower_sni, "youtu.be") ||
         lower_sni.find("yt3.ggpht") != std::string::npos) {
         return AppType::YOUTUBE;
     }
@@ -86,9 +100,9 @@ AppType sniToAppType(const std::string& sni) {
     // Facebook/Meta
     if (lower_sni.find("facebook") != std::string::npos ||
         lower_sni.find("fbcdn") != std::string::npos ||
-        lower_sni.find("fb.com") != std::string::npos ||
+        matchesDomain(lower_sni, "fb.com") ||
         lower_sni.find("fbsbx") != std::string::npos ||
-        lower_sni.find("meta.com") != std::string::npos) {
+        matchesDomain(lower_sni, "meta.com")) {
         return AppType::FACEBOOK;
     }
     
@@ -100,15 +114,15 @@ AppType sniToAppType(const std::string& sni) {
     
     // WhatsApp (owned by Meta)
     if (lower_sni.find("whatsapp") != std::string::npos ||
-        lower_sni.find("wa.me") != std::string::npos) {
+        matchesDomain(lower_sni, "wa.me")) {
         return AppType::WHATSAPP;
     }
     
     // Twitter/X
     if (lower_sni.find("twitter") != std::string::npos ||
         lower_sni.find("twimg") != std::string::npos ||
-        lower_sni.find("x.com") != std::string::npos ||
-        lower_sni.find("t.co") != std::string::npos) {
+        matchesDomain(lower_sni, "x.com") ||
+        matchesDomain(lower_sni, "t.co")) {
         return AppType::TWITTER;
     }
     
@@ -129,10 +143,10 @@ AppType sniToAppType(const std::string& sni) {
     
     // Microsoft
     if (lower_sni.find("microsoft") != std::string::npos ||
-        lower_sni.find("msn.com") != std::string::npos ||
+        matchesDomain(lower_sni, "msn.com") ||
         lower_sni.find("office") != std::string::npos ||
         lower_sni.find("azure") != std::string::npos ||
-        lower_sni.find("live.com") != std::string::npos ||
+        matchesDomain(lower_sni, "live.com") ||
         lower_sni.find("outlook") != std::string::npos ||
         lower_sni.find("bing") != std::string::npos) {
         return AppType::MICROSOFT;
@@ -148,21 +162,21 @@ AppType sniToAppType(const std::string& sni) {
     
     // Telegram
     if (lower_sni.find("telegram") != std::string::npos ||
-        lower_sni.find("t.me") != std::string::npos) {
+        matchesDomain(lower_sni, "t.me")) {
         return AppType::TELEGRAM;
     }
     
     // TikTok
     if (lower_sni.find("tiktok") != std::string::npos ||
         lower_sni.find("tiktokcdn") != std::string::npos ||
-        lower_sni.find("musical.ly") != std::string::npos ||
+        matchesDomain(lower_sni, "musical.ly") ||
         lower_sni.find("bytedance") != std::string::npos) {
         return AppType::TIKTOK;
     }
     
     // Spotify
     if (lower_sni.find("spotify") != std::string::npos ||
-        lower_sni.find("scdn.co") != std::string::npos) {
+        matchesDomain(lower_sni, "scdn.co")) {
         return AppType::SPOTIFY;
     }
     
