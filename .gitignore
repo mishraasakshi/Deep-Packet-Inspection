@@ -1,0 +1,8 @@
+# Compiled engine (build it from source - see README)
+dpi_engine
+build/
+*.o
+*.exe
+
+# Generated captures (test_dpi.pcap is the sample input and stays)
+output.pcap
